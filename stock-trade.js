@@ -1,4 +1,4 @@
-export default async function main(ns) {
+export async function main(ns) {
     const [sym, sampleSize, smaPort] = ns.args;
   
     let shortPos = false;
