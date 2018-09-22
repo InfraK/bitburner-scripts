@@ -225,7 +225,7 @@ async function doAutoHack(ns, data) {
     await ns.run('weaken.script', Math.ceil((currSecurity - tMinSecurity) / 0.05), tName);
 
     while (ns.isRunning('weaken.script', host, tName)) {
-      ns.sleep(100, false);
+      await ns.sleep(100, false);
     }
   }
 
@@ -237,7 +237,7 @@ async function doAutoHack(ns, data) {
     }
 
     while (ns.isRunning('weaken.script', host, tName)) {
-      ns.sleep(100, false);
+      await ns.sleep(100, false);
     }
   }
 
