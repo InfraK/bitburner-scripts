@@ -30,5 +30,5 @@ async function gymRoutine(ns) {
 export async function main(ns) {
   studyHacking(ns);
   gymRoutine(ns);
-  await run('startCrime.ns');
+  await ns.run('startCrime.ns');
 }

@@ -9,7 +9,7 @@ const getBestCrime = (ns) => {
   return bestCrime;
 }
 
-export default async function main(ns) {
+export async function main(ns) {
   let counter = 0;
   while (true) {
     while (!ns.isBusy()) {

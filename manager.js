@@ -15,6 +15,7 @@ var rport = 10;
 async function getTargets(ns) {
   let target;
   let doLoop = true;
+  tprint('geteando target');
   while (doLoop) {
     target = ns.read(rport);
     if (target !== 'NULL PORT DATA') {
@@ -34,7 +35,7 @@ const assignment = (a, b) => {
   return assignments;
 };
 
-const getHackers = ns => ns.getPurchasedServers().unshift('home');
+const getHackers = ns => ns.getPurchasedServers();
 
 export async function executeHacks(ns, servers) {
   for (const s of servers) {
@@ -56,6 +57,8 @@ const getMoney = (ns) => {
 
 
 export async function buyServers(ns, servers, targets) {
+  ns.tprint('Servers length');
+  ns.tprint(servers.length);
   for (let s of servers) {
     let bought = false;
     while (!bought) {
@@ -74,7 +77,7 @@ export async function buyServers(ns, servers, targets) {
 }
 
 const copyHack = (ns, s) => {
-  const hackFiles = ['hack_target.script', 'hack.script', 'weaken.script', 'grow.script'];
+  const hackFiles = ['hackTarget.ns', 'hack.script', 'weaken.script', 'grow.script'];
   ns.scp(hackFiles, 'home', s);
 };
 
@@ -97,12 +100,13 @@ export async function upgradeServer(ns, s, paired) {
 
 export async function main(ns) {
   while (true) {
-    const targets = getTargets(ns);
+    const targets = ns.read(10);
     const hackers = getHackers(ns);
     const paired = assignment(hackers, targets);
     executeHacks(ns, paired);
+
     if (targets.length > hackers.length) {
-      buyServers(ns, hackers, targets);
+      buyServers(ns, targets, hackers);
     } else {
       ns.print('Server limit reached');
       let toUpgrade = TO_UPGRADE;
