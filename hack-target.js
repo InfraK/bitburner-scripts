@@ -1,252 +1,303 @@
-function get_free_ram(){
-    ram = getServerRam(get_hostname());
-    free = ram[0] - ram[1];
-    return Math.floor(free);
-}
-function get_hostname(){
-    return getHostname();
-}
-function get_hacking_level(){
-    return getHackingLevel();
-}
-function get_available_money(s){
-    return getServerMoneyAvailable(s);
-}
-function get_security_level(s){
-    return getServerSecurityLevel(s);
+// File sizes
+const WEAKEN_SIZE = 1.75;
+const GROW_SIZE = 1.75;
+const HACK_SIZE = 1.7;
+
+const WEAKEN = 0.05;
+const getFreeRam = (ns) => {
+  const ram = ns.getServerRam(ns.getHostname());
+  return Math.floor(ram[0] - ram[1]);
+};
+
+async function eHack(ns, threads, data) {
+  const {
+    host,
+    tName,
+  } = data;
+  await ns.exec('hack.script', host, threads, tName);
 }
 
-function e_hack(t){
-    exec('hack.script', host, t , target);
+async function eGrow(ns, threads, data) {
+  const {
+    host,
+    tName,
+  } = data;
+  await ns.exec('grow.script', host, threads, tName);
 }
 
-function e_grow(t){
-    exec('grow.script', host, t , target);
-}
-function e_weaken(t){
-    exec('weaken.script', host, t , target);
+async function eWeaken(ns, threads, data) {
+  const {
+    host,
+    tName,
+  } = data;
+  await ns.exec('weaken.script', host, threads, tName);
 }
 
-function calculate_weaken_threads(){
-    weaken_constant = 0.05;
-    current_security = get_security_level(target);
-    threads = Math.ceil(current_security - t_minsecurity) / weaken_constant;
-    threads_available = Math.floor(get_free_ram() / weaken_size);
-    
-    //result = [threads, threads_available];
-    //return result;
-    
-    if(threads > threads_available){
-        return threads_available;
-    }else{
-        return threads;
+const calculateHackThreads = (ns, data) => {
+  const {
+    lvl,
+    mults,
+    bitNodeMult,
+    lvlReq,
+    tName,
+  } = data;
+
+  const difficultyMult = (100 - ns.getServerSecurityLevel(tName)) / 100;
+  const skillMult = (lvl - (lvlReq - 1)) / lvl;
+  const percentMoneyHacked = difficultyMult * skillMult * mults.money / 240;
+
+  const perHack = percentMoneyHacked * bitNodeMult;
+  const threads = Math.ceil(1 / perHack);
+  const threadsAvailable = Math.floor(getFreeRam(ns) / HACK_SIZE);
+
+  if (threads > threadsAvailable) {
+    return threadsAvailable;
+  }
+  return threads;
+};
+
+
+const calculateWeakenThreads = (ns, data) => {
+  const {
+    tMinSecurity,
+    tName,
+  } = data;
+  const currSecurity = ns.getServerSecurityLevel(tName);
+  const threads = Math.ceil(currSecurity - tMinSecurity) / WEAKEN;
+  const threadsAvailable = Math.floor(getFreeRam(ns) / WEAKEN_SIZE);
+  if (threads > threadsAvailable) {
+    return threadsAvailable;
+  }
+  return threads;
+};
+
+const calculateGrowThreads = (ns, data) => {
+  const {
+    tGrowth,
+    tName,
+    tMaxMoney,
+    mults,
+  } = data;
+
+  const adjGrowthRate = 1 + (tGrowth - 1) / ns.getServerSecurityLevel(tName);
+  const serverMaxGrowthRate = 1.0035;
+  const growPercent = Math.min(adjGrowthRate, serverMaxGrowthRate);
+
+  const perThread = Math.pow(growPercent, tGrowth / 100 * mults.growth);
+  const var1 = tMaxMoney * Math.log(perThread);
+  const lambert = Math.log(var1) - Math.log(Math.log(var1)) - Math.log(1 - Math.log(Math.log(var1)) / Math.log(var1));
+  const threads = Math.ceil(lambert / Math.log(perThread));
+  const threadsAvailable = Math.floor(getFreeRam(ns) / GROW_SIZE);
+
+  if (threads > threadsAvailable) {
+    return threadsAvailable;
+  }
+  return threads;
+};
+
+const getMoney = (ns) => {
+  return ns.getServerMoneyAvailable('home');
+};
+
+const nextStep = (ns, data) => {
+  const {
+    tName,
+    tMinSecurity,
+    tMaxMoney,
+  } = data;
+  if (ns.getServerSecurityLevel(tName) > tMinSecurity) {
+    return 'weaken';
+  }
+  if (getMoney(ns) < tMaxMoney) {
+    return 'grow';
+  }
+  return 'hack';
+};
+
+const getSleepTime = (ns, data, step) => {
+  switch (step) {
+    case 'hack':
+      return (ns.getHackTime(data.tName) + 10) * 1000;
+    case 'grow':
+      return (ns.getGrowTime(data.tName) + 10) * 1000;
+    case 'weaken':
+      return (ns.getWeakenTime(data.tName) + 10) * 1000;
+  }
+};
+
+const getAutoHackThreads = (data) => {
+  const {
+    tMinSecurity,
+    lvl,
+    lvlReq,
+    mults,
+    bitNodeMult,
+    tGrowth,
+    tMaxMoney,
+  } = data;
+
+  const perHack = (100 - tMinSecurity) * ((lvl - lvlReq + 1) / lvl) / 24000 * mults.money * bitNodeMult;
+  const hackThreads = Math.ceil(1 / perHack);
+
+  const security = tMinSecurity + hackThreads * 0.002;
+  const growPercent = Math.min(1 + 0.03 / security, 1.0035);
+  const perGrow = Math.pow(growPercent, tGrowth / 100 * mults.growth);
+
+  const helper = tMaxMoney * Math.log(perGrow);
+  const lambert = Math.log(helper) - Math.log(Math.log(helper)) - Math.log(1 - Math.log(Math.log(helper)) / Math.log(helper));
+  const growThreads = Math.ceil(lambert / Math.log(perGrow));
+  // Calculate number of Weaken Threads Required
+  let weakenThreads = Math.ceil((((hackThreads * 0.002) + (growThreads * 0.004)) / (0.05)));
+  const maxWeakens = (100 - tMinSecurity) / (0.05);
+  if (weakenThreads > maxWeakens) {
+    weakenThreads = maxWeakens;
+  }
+
+  return {
+    growThreads,
+    hackThreads,
+    weakenThreads,
+  };
+};
+
+const canAutoHack = (ns, data) => {
+  const {
+    hackThreads,
+    growThreads,
+    weakenThreads,
+  } = getAutoHackThreads(data);
+
+  let totalmem = 0;
+  // Add up how much memory this will use, report the value
+  totalmem = (hackThreads * 1.80) + (growThreads * 1.55) + (weakenThreads * 1.55) + 6.70;
+
+  if (getFreeRam(ns) > totalmem) {
+    return true;
+  }
+  return false;
+};
+
+async function doHack(ns, data) {
+  const threads = calculateHackThreads(ns, data);
+  if (threads === 0) {
+    return;
+  }
+  const wait = getSleepTime(ns, data, 'hack');
+  await eHack(ns, threads, data);
+  await ns.sleep(wait);
+}
+
+async function doGrow(ns, data) {
+  const threads = calculateGrowThreads(ns, data);
+  if (threads === 0) {
+    return;
+  }
+  const wait = getSleepTime(ns, data, 'grow');
+  await eGrow(ns, threads, data);
+  await ns.sleep(wait);
+}
+
+async function doWeaken(ns, data) {
+  const threads = calculateWeakenThreads(ns, data);
+  if (threads === 0) {
+    return;
+  }
+  const wait = getSleepTime(ns, data, 'hack');
+  await eWeaken(ns, threads, data);
+  await ns.sleep(wait);
+}
+
+async function doAutoHack(ns, data) {
+  const {
+    tName,
+    tMinSecurity,
+    host,
+  } = data;
+
+  const {
+    hackThreads,
+    growThreads,
+    weakenThreads,
+  } = getAutoHackThreads(data);
+
+  const currSecurity = ns.getServerSecurityLevel(tName);
+  if (currSecurity > tMinSecurity) {
+    await ns.run('weaken.script', Math.ceil((currSecurity - tMinSecurity) / 0.05), tName);
+
+    while (ns.isRunning('weaken.script', host, tName)) {
+      ns.sleep(100, false);
     }
-     
-}
-function calculate_grow_threads(){
-    adjGrowthRate = 1 + (t_growth - 1) / get_security_level(target);
-    serverMaxGrowthRate = 1.0035;
-    growpercent = Math.min(adjGrowthRate, serverMaxGrowthRate);
-    perthread = Math.pow(growpercent,t_growth/100 * mults.growth);
-    var1 = t_maxmoney * Math.log(perthread);
-    lambert = Math.log(var1)-Math.log(Math.log(var1))-Math.log(1-Math.log(Math.log(var1))/Math.log(var1));
-    threads = Math.ceil(lambert/Math.log(perthread));
-    threads_available = Math.floor(get_free_ram() / grow_size);
-    //result = [threads, threads_available];
-    //return result;
-    
-    if(threads > threads_available){
-        return threads_available;
-    }else{
-        return threads;
-    }
-}
-function calculate_hack_threads(){
-    lvl = get_hacking_level();
-    difficultyMult = (100 - get_security_level(target)) / 100;
-    skillMult = (lvl - (lvlreq - 1)) / lvl;
-    percentMoneyHacked = difficultyMult * skillMult * mults.money / 240;
-    perhack = percentMoneyHacked * bitnodemult;
-    threads = Math.ceil(1/perhack);
-    threads_available = Math.floor(get_free_ram() / hack_size);
-    //result = [threads, threads_available];
-    //return result;
-    
-    if(threads > threads_available){
-        return threads_available;
-    }else{
-        return threads;
-    }
-     
-}
-function next_step(){
-    if(get_security_level(target) > t_minsecurity){
-        return 'weaken';
-    }else{
-        if(get_available_money(target) < t_maxmoney){
-            return 'grow';
-        }else{
-            return 'hack';
-        }
-    }
-}
+  }
 
-function calculate_sleep_time(step){
-    if(step === 'hack'){
-        return (getHackTime(target)+10) *1000;
-    }
-    if(step === 'grow'){
-        return (getGrowTime(target)+10) *1000;
-    }
-    if(step === 'weaken'){
-        return (getWeakenTime(target)+10)*1000;
-    }
-}
-function can_autohack(){
-    perhack = (100-t_minsecurity) *((lvl-lvlreq+1)/lvl) / 24000 * mults.money * bitnodemult;
-    hacks = Math.ceil(1/perhack);
-    //Gather Growth-related Variables
-    security = t_minsecurity + hacks * 0.002;
-    //Calculate number of Grow Threads Required
-    growpercent = Math.min(1 + 0.03/security,1.0035);
-    pergrow = Math.pow(growpercent,t_growth/100 * mults.growth);
-    var1 = t_maxmoney * Math.log(pergrow);
-    lambert = Math.log(var1)-Math.log(Math.log(var1))-Math.log(1-Math.log(Math.log(var1))/Math.log(var1));
-    grows = Math.ceil(lambert/Math.log(pergrow));
-    //Calculate number of Weaken Threads Required
-    weakens = Math.ceil((((hacks * 0.002) + (grows * 0.004)) / (0.05)));
-    maxweakens = (100 - t_minsecurity) / (0.05);
-    if (weakens > maxweakens) {weakens = maxweakens}
-    totalmem = 0;
-    //Add up how much memory this will use, report the value
-    totalmem = (hacks * 1.80) + (grows * 1.55) + (weakens * 1.55) + 6.70;
-    if (get_free_ram() > totalmem){
-        print('This server can use the autohack method');
-        return true;
-    }else{
-        print('This serrver cannot use autohack method');
-        return false;
-    }
-}
-
-//** BiNode Multipliers **//
-bitnodemult = 1;
-
-//** File sizes **//
-weaken_size = 1.55;
-grow_size = 1.55;
-hack_size = 1.8;
-
-//** Arguments **//
-target = args[0];
-
-
-//** Aquiring data **//
-lvl = get_hacking_level();
-lvlreq = getServerRequiredHackingLevel(target);
-host = get_hostname();
-mults = getHackingMultipliers();
-t_maxmoney = getServerMaxMoney(target);
-t_growth = getServerGrowth(target);
-t_minsecurity = getServerMinSecurityLevel(target);
-
-//** Constants **//
-serverMaxGrowthRate = 1.0035;
-
-//** Check if you can use autohack method **//
-
-if (can_autohack() === false){
-    if (hasRootAccess(target) === false){
-        exec('root.script', 'home', 1, target);
-        sleep (10000);
-    }
-    while(true){
-        lvl = get_hacking_level();
-        t_maxmoney = getServerMaxMoney(target);
-        t_growth = getServerGrowth(target);
-        t_minsecurity = getServerMinSecurityLevel(target);
-
-        step = next_step();
-
-        if (step == 'hack'){
-            print('Executing hack script');
-            t = calculate_hack_threads();
-            if(t === 0){
-            }else{
-            wait = calculate_sleep_time(step);
-            e_hack(t);
-            print('Waiting for hack to finish....');
-            sleep(wait);
-            }        
-        }else{
-            if (step == 'grow'){
-                print('Executing grow script');
-                
-                t = calculate_grow_threads();
-                if(t === 0){
-                }else{
-                wait = calculate_sleep_time(step);
-                e_grow(t);
-                print('Waiting for grow to finish...');
-                sleep(wait);
-                }
-            }else{
-                if (step == 'weaken'){
-                    print('Executing weaken script');
-                    t = calculate_weaken_threads();
-                    if(t === 0){
-                    }else{
-                    wait = calculate_sleep_time(step);
-                    e_weaken(t);
-                    print('Waiting for weaken to finish...');
-                    sleep(wait);
-                    }
-                }
-            }
-        }
-    }
-}else{
-
-    perhack = (100-t_minsecurity) *((lvl-lvlreq+1)/lvl) / 24000 * mults.money * bitnodemult;
-    hacks = Math.ceil(1/perhack);
-
-    //Gather Growth-related Variables
-    security = t_minsecurity + hacks * 0.002;
-
-    //Calculate number of Grow Threads Required
-    growpercent = Math.min(1 + 0.03/security,1.0035);
-    pergrow = Math.pow(growpercent,t_growth/100 * mults.growth);
-    var1 = t_maxmoney * Math.log(pergrow);
-    lambert = Math.log(var1)-Math.log(Math.log(var1))-Math.log(1-Math.log(Math.log(var1))/Math.log(var1));
-    grows = Math.ceil(lambert/Math.log(pergrow));
-
-    //Calculate number of Weaken Threads Required
-    weakens = Math.ceil((((hacks * 0.002) + (grows * 0.004)) / (0.05)));
-    maxweakens = (100 - t_minsecurity) / (0.05);
-    if (weakens > maxweakens) {weakens = maxweakens}
-
-    currsecurity = getServerSecurityLevel(target);
-
-    if (currsecurity > t_minsecurity)
-    {
-        run('weaken.script',Math.ceil((currsecurity - t_minsecurity) / 0.05),target);
-
-        while (isRunning('weaken.script',getHostname(),target))
-        {
-            sleep(1000,false);
-        }
-    }
-
-    while (true)
-    {
-        run('weaken.script',weakens,target);
-        run('grow.script',grows,target);
-        if (isRunning('hack.script',getHostname(),target) === false) {run('hack.script',hacks,target);}
-
-        while (isRunning('weaken.script',getHostname(),target))
-        {
-            sleep(1000,false);
-        }
+  while (true) {
+    await ns.run('weaken.script', weakenThreads, tName);
+    await ns.run('grow.script', growThreads, tName);
+    if (ns.isRunning('hack.script', host, tName) === false) {
+      await ns.run('hack.script', hackThreads, tName);
     }
 
+    while (ns.isRunning('weaken.script', host, tName)) {
+      ns.sleep(100, false);
+    }
+  }
+
+
+}
+
+
+export async function main(ns) {
+
+  const tName = ns.args[0];
+
+  //* Aquiring data *//
+  const bitNodeMult = 1;
+  let lvl = ns.getHackingLevel();
+  const lvlReq = ns.getServerRequiredHackingLevel(tName);
+  const host = ns.getHostname();
+  const mults = ns.getHackingMultipliers();
+  const tMaxMoney = ns.getServerMaxMoney(tName);
+  const tGrowth = ns.getServerGrowth(tName);
+  const tMinSecurity = ns.getServerMinSecurityLevel(tName);
+  // Constants
+  const serverMaxGrowthRate = 1.0035;
+
+  const data = {
+    tName,
+    lvl,
+    lvlReq,
+    host,
+    mults,
+    tMaxMoney,
+    tGrowth,
+    tMinSecurity,
+    serverMaxGrowthRate,
+    bitNodeMult,
+  };
+  // Root
+  if (!ns.hasRootAccess(tName)) {
+    await ns.exec('root.ns', 'home', 1, tName);
+    await ns.sleep(100);
+  }
+
+  if (canAutoHack(ns, data)) {
+    await doAutoHack(ns, data);
+  }
+
+  while (true) {
+    // Updating the changing hacking level
+    lvl = ns.getHackingLevel();
+    data.lvl = lvl;
+
+    switch (nextStep(ns, data)) {
+      case 'hack':
+        await doHack(ns, data);
+        break;
+      case 'weaken':
+        await doWeaken(ns, data);
+        break;
+      case 'grow':
+        await doGrow(ns, data);
+        break;
+    }
+  }
 }
