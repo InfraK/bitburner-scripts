@@ -93,12 +93,10 @@ export async function main(ns) {
         rootServers(ns, hackableServers);
         const targets = getBestTargets(hackableServers);
         ns.write(port, targets);
-
-        await ns.sleep(30000);
-
         if (first) {
             await ns.run('manager.ns')
             first = false;
         }
+        await ns.sleep(30000);
     }
 }

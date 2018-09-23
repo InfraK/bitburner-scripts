@@ -3,9 +3,9 @@ const RAM_VALUE = 50000;
 const TO_UPGRADE = 50000000;
 
 const minRam = 64;
-const maxRam = 256;
+// const maxRam = 256;
 // const maxRam = 4096;
-// const maxRam = 16384;
+const maxRam = 16384;
 // const maxRam = 65536;
 const upgradeFactor = 4;
 const namePrefix = 'HackServer';
