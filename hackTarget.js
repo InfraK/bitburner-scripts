@@ -276,7 +276,7 @@ export async function main(ns) {
   // Root
   if (!ns.hasRootAccess(tName)) {
     await ns.exec('root.ns', 'home', 1, tName);
-    await ns.sleep(300);
+    await ns.sleep(2000);
   }
 
   if (canAutoHack(ns, data)) {
@@ -299,6 +299,6 @@ export async function main(ns) {
         await doGrow(ns, data);
         break;
     }
-    await ns.sleep(1000);
+    await ns.sleep(10000);
   }
 }
