@@ -94,7 +94,7 @@ export async function main(ns) {
         const targets = getBestTargets(hackableServers);
         ns.write(port, targets);
 
-        await ns.sleep(1000);
+        await ns.sleep(30000);
 
         if (first) {
             await ns.run('manager.ns')

@@ -225,7 +225,7 @@ async function doAutoHack(ns, data) {
     await ns.run('weaken.script', Math.ceil((currSecurity - tMinSecurity) / 0.05), tName);
 
     while (ns.isRunning('weaken.script', host, tName)) {
-      await ns.sleep(100, false);
+      await ns.sleep(150, false);
     }
   }
 
@@ -237,7 +237,7 @@ async function doAutoHack(ns, data) {
     }
 
     while (ns.isRunning('weaken.script', host, tName)) {
-      await ns.sleep(100, false);
+      await ns.sleep(150, false);
     }
   }
 
@@ -276,7 +276,7 @@ export async function main(ns) {
   // Root
   if (!ns.hasRootAccess(tName)) {
     await ns.exec('root.ns', 'home', 1, tName);
-    await ns.sleep(100);
+    await ns.sleep(300);
   }
 
   if (canAutoHack(ns, data)) {
@@ -299,5 +299,6 @@ export async function main(ns) {
         await doGrow(ns, data);
         break;
     }
+    await ns.sleep(1000);
   }
 }
