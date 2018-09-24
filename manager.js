@@ -1,6 +1,5 @@
 // ***   SETTINGS *** //
 const RAM_VALUE = 50000;
-const TO_UPGRADE = 50000000;
 
 const minRam = 64;
 // const maxRam = 256;
@@ -11,134 +10,122 @@ const upgradeFactor = 4;
 const namePrefix = 'HackServer';
 // ** PORT ** //
 const rport = 10;
+const hackFiles = ['hackTarget.ns', 'hack.script', 'weaken.script', 'grow.script'];
 
-async function getTargets(ns) {
-  let target;
-  let doLoop = true;
-  tprint('geteando target');
-  while (doLoop) {
-    target = ns.read(rport);
-    if (target !== 'NULL PORT DATA') {
-      doLoop = false;
-    }
-    await ns.sleep(100);
-  }
-  return target;
-}
+export const getMoney = ns => ns.getServerMoneyAvailable('home');
 
-const assignment = (a, b) => {
+const copyHacks = (ns, s) => {
+  ns.scp(hackFiles, 'home', s);
+};
+
+const assign = (servers, targets) => {
   const assignments = [];
-  const counter = Math.min(a.length, b.length);
+  const counter = Math.min(servers.length, targets.length);
   for (let i = 0; i < counter; i++) {
-    assignments.push([a[i], b[i]]);
+    assignments.push({
+      server: servers[i],
+      target: targets[i],
+    });
   }
   return assignments;
 };
 
-const getHackers = ns => ns.getPurchasedServers();
 
-export async function executeHack(ns, pair) {
-  await ns.exec('hackTarget.ns', pair[0], 1, pair[1]);
+async function executeHacks(ns, assigned) {
+  for (let i = 0; i < assigned.length; i++) {
+    if (!ns.isRunning('hackTarget.ns', assigned[i].server, assigned[i].target)) {
+      ns.killall(assigned[i].server);
+      await ns.sleep(10000);
+      copyHacks(ns, assigned[i].server);
+      await ns.exec('hackTarget.ns', assigned[i].server, 1, assigned[i].target);
+      ns.print(`Launching Hack on ${assigned[i].server} targeting ${assigned[i].target}`)
+    }
+  }
 }
 
-const getMoney = (ns) => {
-  return ns.getServerMoneyAvailable('home');
+async function buyServer(ns, num) {
+  while (true) {
+    if (getMoney(ns) > (minRam * RAM_VALUE)) {
+      const sname = `${namePrefix} - ${num}`;
+      ns.purchaseServer(sname, minRam);
+      ns.print(`Purchasing ${sname}`);
+      break;
+    }
+    await ns.sleep(500);
+  }
+}
+
+const getSmallestServer = (ns) => {
+  const servers = ns.getPurchasedServers();
+  let lowest = 5000000000;
+  for (let i = 0; i < servers.length; i++) {
+    const svRam = ns.getServerRam(servers[i])[0];
+    if (svRam < lowest) {
+      lowest = svRam;
+    }
+  }
+  return lowest;
 };
 
-
-export async function buyServers(ns, servers, targets) {
-  for (let s of servers) {
-    let bought = false;
-    while (!bought) {
-      if (getMoney(ns) > (minRam * RAM_VALUE)) {
-        const sname = namePrefix + servers.length;
-        ns.purchaseServer(sname, minRam);
-        copyHack(ns, sname);
-        if (!targets.length < servers.length + 1) {
-          await executeHack(servers[servers.length - 1]);
-        }
-        bought = true;
-      }
-      await ns.sleep(150);
+async function upgradeServer(ns, ram) {
+  // Find the servers with the desired RAM
+  const servers = ns.getPurchasedServers();
+  const filtered = servers.filter(s => ns.getServerRam(s)[0] === ram);
+  const newRam = ram * upgradeFactor;
+  if (getMoney(ns) > newRam * RAM_VALUE) {
+    for (const server of filtered) {
+      ns.killall(server);
+      await ns.sleep(10000);
+      ns.deleteServer(server);
+      ns.print(`Upgrading ${server} from ${ram} to ${newRam} `)
+      ns.purchaseServer(server, newRam);
+      // Buy just one server at a time
+      break;
     }
+  } else {
+    ns.print(`Not enough money to upgrade ${server}, required ${newRam * RAM_VALUE} `);
   }
 }
 
-const copyHack = (ns, s) => {
-  const hackFiles = ['hackTarget.ns', 'hack.script', 'weaken.script', 'grow.script'];
-  ns.scp(hackFiles, 'home', s);
+async function getTargets(ns) {
+  while (ns.peek(rport) === 'NULL PORT DATA') {
+    // Throw out all empty values
+    ns.read(rport);
+    await ns.sleep(150);
+  }
+  const targets = ns.read(rport);
+  return targets;
 };
-
-export async function upgradeServer(ns, s, paired) {
-  const oldRam = ns.getServerRam(s)[0];
-  const newRam = oldRam * upgradeFactor;
-  if (getMoney(ns) > (newRam * RAM_VALUE)) {
-    await ns.killall(s);
-    await ns.sleep(1000);
-    ns.deleteServer(s);
-    ns.purchaseServer(s, newRam);
-    copyHack(ns, s);
-    for (let pair of paired) {
-      if (pair[0] === s) {
-        await executeHack(ns, pair);
-        await ns.sleep(150);
-      }
-    }
-  }
-}
-
-export async function executeHacks(ns, servers) {
-  for (const s of servers) {
-    if (!ns.isRunning('hackTarget.ns', s[0], s[1])) {
-      await ns.killall(s[0]);
-      await ns.sleep(1500);
-      copyHack(ns, s[0]);
-      await ns.exec('hackTarget.ns', s[0], 1, s[1]);
-    }
-  }
-}
 
 export async function main(ns) {
+  // Disabling anoying loggins
+  ns.disableLog('disableLog');
+  ns.disableLog('sleep');
+  ns.disableLog('scp');
+  ns.disableLog('getServerMoneyAvailable');
+  ns.disableLog('getServerRam');
+  ns.disableLog('killall');
+  ns.disableLog('exec');
+  ns.disableLog('purchaseServer');
+  ns.disableLog('deleteServer');
   while (true) {
-    ns.disableLog('sleep');
-    const targets = ns.read(10);
-    const hackers = getHackers(ns);
-    const paired = assignment(hackers, targets);
-    await executeHacks(ns, paired);
-
-    if (targets.length > hackers.length) {
-      buyServers(ns, targets, hackers);
-    } else {
-      ns.print('Server limit reached');
-      let toUpgrade = TO_UPGRADE;
-      ns.getPurchasedServers().forEach((s) => {
-        if (ns.getServerRam(s)[0] < toUpgrade) {
-          toUpgrade = ns.getServerRam(s)[0];
-        }
-      });
-
-      if (toUpgrade === maxRam) {
-        ns.print('All Servers have maximum ram');
-        break;
-      } else {
-        ns.print('Upgrading servers...');
-        ns.getPurchasedServers().forEach((s) => {
-          if (ns.getServerRam(s)[0] === toUpgrade) {
-            upgradeServer(ns, s, paired);
-          }
-        })
-      }
-
+    const servers = ns.getPurchasedServers().sort();
+    const targets = await getTargets(ns);
+    const assigned = assign(servers, targets);
+    ns.print(`Got ${servers.length} servers and ${targets.length} targets`);
+    await executeHacks(ns, assigned);
+    if (targets.length > servers.length) {
+      ns.print(`Buying server N° ${servers.length} `);
+      await buyServer(ns, servers.length);
+      continue;
     }
-    await ns.sleep(1000);
-  }
 
-  while (true) {
-    ns.print('Keeping hacking servers on target');
-    const targets = ns.read(10);
-    const hackers = getHackers(ns);
-    const paired = assignment(hackers, targets);
-    await executeHacks(ns, paired);
-    await ns.sleep(30000);
+    const smallest = getSmallestServer(ns);
+    if (smallest < maxRam) {
+      ns.print(`Upgrading servers with ${smallest} ram`);
+      await upgradeServer(ns, smallest);
+      continue;
+    }
+    await ns.sleep(150);
   }
-};
+}
