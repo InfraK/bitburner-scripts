@@ -71,19 +71,23 @@ async function upgradeServer(ns, ram) {
   // Find the servers with the desired RAM
   const servers = ns.getPurchasedServers();
   const filtered = servers.filter(s => ns.getServerRam(s)[0] === ram);
+  ns.tprint(`Im upgrading servers with ${ram} RAM`);
+  ns.tprint(`There are ${filtered.length} servers to upgrade`);
+  ns.tprint(filtered);
   const newRam = ram * upgradeFactor;
-  if (getMoney(ns) > newRam * RAM_VALUE) {
-    for (const server of filtered) {
-      ns.killall(server);
+  for (let i = 0; i < filtered.length; i++) {
+    if (getMoney(ns) > newRam * RAM_VALUE) {
+      ns.tprint(filtered[i]);
+      ns.killall(filtered[i]);
       await ns.sleep(10000);
-      ns.deleteServer(server);
-      ns.print(`Upgrading ${server} from ${ram} to ${newRam} `)
-      ns.purchaseServer(server, newRam);
+      ns.deleteServer(filtered[i]);
+      ns.print(`Upgrading ${filtered[i]} from ${ram} to ${newRam} `)
+      ns.purchaseServer(filtered[i], newRam);
       // Buy just one server at a time
       break;
+    } else {
+      ns.print(`Not enough money to upgrade ${filtered[i]}, required ${newRam * RAM_VALUE} `);
     }
-  } else {
-    ns.print(`Not enough money to upgrade ${server}, required ${newRam * RAM_VALUE} `);
   }
 }
 
