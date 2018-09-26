@@ -71,9 +71,6 @@ async function upgradeServer(ns, ram) {
   // Find the servers with the desired RAM
   const servers = ns.getPurchasedServers();
   const filtered = servers.filter(s => ns.getServerRam(s)[0] === ram);
-  ns.tprint(`Im upgrading servers with ${ram} RAM`);
-  ns.tprint(`There are ${filtered.length} servers to upgrade`);
-  ns.tprint(filtered);
   const newRam = ram * upgradeFactor;
   for (let i = 0; i < filtered.length; i++) {
     if (getMoney(ns) > newRam * RAM_VALUE) {
@@ -113,7 +110,7 @@ export async function main(ns) {
   ns.disableLog('purchaseServer');
   ns.disableLog('deleteServer');
   while (true) {
-    const servers = ns.getPurchasedServers().sort();
+    const servers = ns.getPurchasedServers().sort()
     const targets = await getTargets(ns);
     const assigned = assign(servers, targets);
     ns.print(`Got ${servers.length} servers and ${targets.length} targets`);
