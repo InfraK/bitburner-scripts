@@ -74,7 +74,6 @@ async function upgradeServer(ns, ram) {
   const newRam = ram * upgradeFactor;
   for (let i = 0; i < filtered.length; i++) {
     if (getMoney(ns) > newRam * RAM_VALUE) {
-      ns.tprint(filtered[i]);
       ns.killall(filtered[i]);
       await ns.sleep(10000);
       ns.deleteServer(filtered[i]);
@@ -115,7 +114,7 @@ export async function main(ns) {
     const assigned = assign(servers, targets);
     ns.print(`Got ${servers.length} servers and ${targets.length} targets`);
     await executeHacks(ns, assigned);
-    if (targets.length > servers.length) {
+    if (targets.length > servers.length && servers.length < 25) {
       ns.print(`Buying server N° ${servers.length} `);
       await buyServer(ns, servers.length);
       continue;

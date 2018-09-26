@@ -14,6 +14,7 @@ async function eHack(ns, threads, data) {
     host,
     tName,
   } = data;
+  ns.print(`Hacking ${tName} from ${host} with ${threads} threads`);
   await ns.exec('hack.script', host, threads, tName);
 }
 
@@ -22,6 +23,7 @@ async function eGrow(ns, threads, data) {
     host,
     tName,
   } = data;
+  ns.print(`Growing ${tName} from ${host} with ${threads} threads`);
   await ns.exec('grow.script', host, threads, tName);
 }
 
@@ -30,6 +32,7 @@ async function eWeaken(ns, threads, data) {
     host,
     tName,
   } = data;
+  ns.print(`Weakening ${tName} from ${host} with ${threads} threads`);
   await ns.exec('weaken.script', host, threads, tName);
 }
 
@@ -108,7 +111,7 @@ const nextStep = (ns, data) => {
   if (ns.getServerSecurityLevel(tName) > tMinSecurity) {
     return 'weaken';
   }
-  if (getMoney(ns) < tMaxMoney) {
+  if (ns.getServerMoneyAvailable(tName) < tMaxMoney) {
     return 'grow';
   }
   return 'hack';
@@ -117,11 +120,11 @@ const nextStep = (ns, data) => {
 const getSleepTime = (ns, data, step) => {
   switch (step) {
     case 'hack':
-      return (ns.getHackTime(data.tName) + 10) * 1000;
+      return (ns.getHackTime(data.tName) + 2) * 1000;
     case 'grow':
-      return (ns.getGrowTime(data.tName) + 10) * 1000;
+      return (ns.getGrowTime(data.tName) + 2) * 1000;
     case 'weaken':
-      return (ns.getWeakenTime(data.tName) + 10) * 1000;
+      return (ns.getWeakenTime(data.tName) + 2) * 1000;
   }
 };
 
@@ -184,6 +187,7 @@ async function doHack(ns, data) {
   }
   const wait = getSleepTime(ns, data, 'hack');
   await eHack(ns, threads, data);
+  ns.print(`Sleeping for ${Math.ceil(wait / 1000)} seconds`);
   await ns.sleep(wait);
 }
 
@@ -194,6 +198,7 @@ async function doGrow(ns, data) {
   }
   const wait = getSleepTime(ns, data, 'grow');
   await eGrow(ns, threads, data);
+  ns.print(`Sleeping for ${Math.ceil(wait / 1000)} seconds`);
   await ns.sleep(wait);
 }
 
@@ -202,8 +207,9 @@ async function doWeaken(ns, data) {
   if (threads === 0) {
     return;
   }
-  const wait = getSleepTime(ns, data, 'hack');
+  const wait = getSleepTime(ns, data, 'weaken');
   await eWeaken(ns, threads, data);
+  ns.print(`Sleeping for ${Math.ceil(wait / 1000)} seconds`);
   await ns.sleep(wait);
 }
 
@@ -237,7 +243,7 @@ async function doAutoHack(ns, data) {
     }
 
     while (ns.isRunning('weaken.script', host, tName)) {
-      await ns.sleep(150, false);
+      await ns.sleep(150);
     }
   }
 
@@ -246,6 +252,16 @@ async function doAutoHack(ns, data) {
 
 
 export async function main(ns) {
+  ns.disableLog('disableLog');
+  ns.disableLog('sleep');
+  ns.disableLog('getHackingLevel');
+  ns.disableLog('getServerRequiredHackingLevel');
+  ns.disableLog('getServerMaxMoney');
+  ns.disableLog('getServerGrowth');
+  ns.disableLog('getServerMinSecurityLevel');
+  ns.disableLog('getServerSecurityLevel')
+  ns.disableLog('getServerRam')
+  ns.disableLog('exec');
 
   const tName = ns.args[0];
 
@@ -279,9 +295,9 @@ export async function main(ns) {
     await ns.sleep(2000);
   }
 
-  if (canAutoHack(ns, data)) {
-    await doAutoHack(ns, data);
-  }
+  // if (canAutoHack(ns, data)) {
+  //   await doAutoHack(ns, data);
+  // }
 
   while (true) {
     // Updating the changing hacking level
@@ -299,6 +315,6 @@ export async function main(ns) {
         await doGrow(ns, data);
         break;
     }
-    await ns.sleep(10000);
+    await ns.sleep(250);
   }
 }
