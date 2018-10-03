@@ -4,7 +4,7 @@ export default async function main(ns) {
   const target = ns.args[0];
 
   const SIZE = 2.48;
-  const FILE = 'hack1.script';
+  const FILE = 'hackLoop.ns';
   const max = ns.getServerMaxMoney(target);
   const mt = max * 0.9;
   const st = Math.min(ns.getServerBaseSecurityLevel(target) / 3) + 2;
@@ -15,13 +15,15 @@ export default async function main(ns) {
       const s = hosts[i];
       const mem = ns.getServerRam(s);
 
-      if (ns.fileExists(FILE, s) === true
-        && ns.isRunning(FILE, s, target, mt, st) === true) {
+      if (ns.fileExists(FILE, s) === true && ns.isRunning(FILE, s, target, mt, st) === true) {
       } else {
-        if ( // If hackable and not encountered yet, root it
-          ns.hasRootAccess(s) === false
-          && ns.getServerRequiredHackingLevel(s) <= hackLvl
-          && s != 'darkweb' && max >= mt && s != "home"
+        if (
+          // If hackable and not encountered yet, root it
+          ns.hasRootAccess(s) === false &&
+          ns.getServerRequiredHackingLevel(s) <= hackLvl &&
+          s != 'darkweb' &&
+          max >= mt &&
+          s != 'home'
         ) {
           let ports = 0;
           if (ns.fileExists('BruteSSH.exe', 'home')) {
@@ -50,19 +52,17 @@ export default async function main(ns) {
         }
         if (ns.hasRootAccess(s) === true && max >= mt) {
           const free = mem[0] - mem[1];
-          let t = Math.floor((free / SIZE));
+          let t = Math.floor(free / SIZE);
           if (s === 'home') {
             t *= 0.7;
           }
-          if (!t < 1) {
-            if (
-              ns.fileExists(FILE, s) === false
-            ) {
+          if (t > 1) {
+            if (ns.fileExists(FILE, s) === false) {
               ns.scp(FILE, s);
               await ns.exec(FILE, s, t, target, mt, st);
             } else if (
-              ns.fileExists(FILE, s) === true
-              && ns.isRunning(FILE, s, target, mt, st) === false
+              ns.fileExists(FILE, s) === true &&
+              ns.isRunning(FILE, s, target, mt, st) === false
             ) {
               await ns.exec(FILE, s, t, target, mt, st);
             }
@@ -71,7 +71,7 @@ export default async function main(ns) {
       }
       const sHosts = ns.scan(s);
       for (let j = 0; j < sHosts.length; j++) {
-        if (hosts.indexOf(sHosts[j]) == -1) {
+        if (hosts.indexOf(sHosts[j]) === -1) {
           hosts.push(sHosts[j]);
         }
       }
