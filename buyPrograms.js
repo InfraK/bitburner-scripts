@@ -1,12 +1,22 @@
-const getPortsNum = (ns) => {
-  const portBusters = ['BruteSSH.exe', 'FTPCrack.exe', 'relaySMTP.exe', 'HTTPWorm.exe', 'SQLInject.exe'];
+const getPortsNum = ns => {
+  const portBusters = [
+    'BruteSSH.exe',
+    'FTPCrack.exe',
+    'relaySMTP.exe',
+    'HTTPWorm.exe',
+    'SQLInject.exe',
+  ];
   let ports = 0;
-  for (let buster of portBusters) {
+  for (const buster of portBusters) {
     if (ns.fileExists(buster)) {
       ports++;
     }
   }
   return ports;
+};
+
+const getMoney = ns => {
+  return ns.getServerMoneyAvailable('home');
 };
 
 function buyPrograms(ns) {
@@ -32,17 +42,13 @@ function buyPrograms(ns) {
       cost: 250000000,
     },
   ];
-  for (let buster of portBusters) {
+  for (const buster of portBusters) {
     const money = getMoney(ns);
     if (!ns.fileExists(buster.name) && money > buster.cost) {
       ns.purchaseProgram(buster.name);
     }
   }
 }
-
-const getMoney = (ns) => {
-  return ns.getServerMoneyAvailable('home');
-};
 
 export async function main(ns) {
   while (getMoney(ns) < 200000) {
@@ -51,7 +57,7 @@ export async function main(ns) {
   }
   ns.purchaseTor();
 
-  while (getPortsNum(ns) != 5) {
+  while (getPortsNum(ns) !== 5) {
     buyPrograms(ns);
     await ns.sleep(500);
   }
