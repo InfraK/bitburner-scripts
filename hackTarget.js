@@ -182,7 +182,7 @@ const canAutoHack = (ns, data) => {
 
 async function doHack(ns, data) {
   const threads = calculateHackThreads(ns, data);
-  if (threads === 0) {
+  if (threads < 1) {
     return;
   }
   const wait = getSleepTime(ns, data, 'hack');

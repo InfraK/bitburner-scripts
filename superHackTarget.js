@@ -42,7 +42,8 @@ const getHackableServers = (ns, servers) => {
     })
     .filter(s => !s.match(/HackServer/g))
     .filter(s => !s.match(/home/g))
-    .filter(s => !s.match(/darkweb/g));
+    .filter(s => !s.match(/darkweb/g))
+    .filter(s => !s.match(/fulcrumassets/g));
   return filtered;
 };
 
