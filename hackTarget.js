@@ -95,11 +95,11 @@ const nextStep = (ns, data) => {
 const getSleepTime = (ns, data, step) => {
   switch (step) {
     case 'hack':
-      return (ns.getHackTime(data.tName) + 6) * 1000;
+      return (ns.getHackTime(data.tName) + 10) * 1000;
     case 'grow':
-      return (ns.getGrowTime(data.tName) + 6) * 1000;
+      return (ns.getGrowTime(data.tName) + 10) * 1000;
     case 'weaken':
-      return (ns.getWeakenTime(data.tName) + 6) * 1000;
+      return (ns.getWeakenTime(data.tName) + 10) * 1000;
   }
 };
 
